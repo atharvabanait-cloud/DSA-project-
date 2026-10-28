@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Traffic Signal Vehicle Queue Simulator</title>
+<style>
+:root{--bg:#eef1f5;--pn:#fff;--tx:#18202b;--mu:#5b6675;--ln:#d6dce4;--ac:#2563eb;--fr:#dcfce7;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10151c;--pn:#182029;--tx:#e6ebf2;--mu:#93a0b2;--ln:#2a3542;--ac:#60a5fa;--fr:#14351f}}
+:root[data-theme="dark"]{--bg:#10151c;--pn:#182029;--tx:#e6ebf2;--mu:#93a0b2;--ln:#2a3542;--ac:#60a5fa;--fr:#14351f}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.45 system-ui,"Segoe UI",sans-serif}
+header{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--ln);background:var(--pn)}
+h1{font-size:17px;margin:0}h2{font-size:13px;margin:0 0 6px}
+main{padding:10px 14px;display:grid;gap:10px}
+.p{background:var(--pn);border:1px solid var(--ln);border-radius:8px;padding:10px;min-width:0}
+.g3{display:grid;grid-template-columns:230px minmax(280px,640px) minmax(240px,1fr);gap:10px}
+.c3{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px}
+@media(max-width:980px){.g3{grid-template-columns:1fr}}
+canvas{width:100%;height:auto;display:block;border-radius:6px}
+button,input,select,textarea{font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--ln);border-radius:6px;padding:4px 8px}
+button{cursor:pointer}button.on,button.pri{background:var(--ac);color:#fff;border-color:var(--ac)}
+label{display:block;margin:6px 0 2px;color:var(--mu);font-size:12px}
+.row{display:flex;gap:4px;flex-wrap:wrap}.row>*{flex:1}
+input[type=number],select{width:100%}input[type=range]{width:100%;padding:0}
+table{width:100%;border-collapse:collapse}td,th{padding:2px 4px;border-bottom:1px solid var(--ln);text-align:left;vertical-align:top}.r{text-align:right;font-variant-numeric:tabular-nums}
+.mono,.b{font-family:ui-monospace,Consolas,monospace}
+.qrow{display:flex;gap:4px;align-items:center;flex-wrap:wrap;min-height:44px;padding:6px;border:1px dashed var(--ln);border-radius:6px}
+.b{border:2px solid var(--ln);border-radius:6px;padding:3px 7px}.b.f{border-color:#22c55e;background:var(--fr);font-weight:700}
+.fr{display:flex;justify-content:space-between;font-weight:700;font-size:12px;color:var(--mu)}
+.ok{color:#16a34a;font-weight:700}.bad{color:#ef4444;font-weight:700}
+.lamp{display:inline-block;width:11px;height:11px;border-radius:50%;vertical-align:middle}
+#log,#cm{max-height:230px;overflow:auto;font-size:12px}#log div,#cm div{border-bottom:1px solid var(--ln);padding:1px 0}
+.dsa b{color:#2563eb}.err{color:#ef4444}.em{color:#f59e0b}.sig{color:#16a34a}.toc{color:#a855f7}
+.ch small{color:var(--mu)}.ch svg{width:100%;height:60px;background:var(--bg);border-radius:4px}
+.bar{height:10px;background:var(--ac);border-radius:3px}
+#toast{position:fixed;left:50%;bottom:calc(14px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:#111827;color:#fff;padding:8px 14px;border-radius:8px;z-index:9;max-width:90%}
+small,em{color:var(--mu)}footer{padding:8px 14px 16px;color:var(--mu);font-size:12px}
+</style></head><body>
+<header><h1>Traffic Signal Vehicle Queue Simulator</h1>
+<nav class="row" id="tabs"><button data-t="sim" class="on">Simulation</button><button data-t="dsa">DSA Demonstration</button><button data-t="sig">Signals &amp; Scenarios</button></nav></header>
+<div id="toast" hidden role="status"></div>
+<main>
+<section id="sim" class="tab" style="display:grid;gap:10px">
+ <div class="g3">
+  <aside class="p">
+   <div class="row"><button class="pri" id="bStart">Start</button><button id="bPause">Pause</button></div>
+   <div class="row" style="margin-top:4px"><button id="bStop">Stop</button><button id="bReset">Reset</button></div>
+   <label>Simulation speed</label><select id="spd"><option value=".5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option><option value="8">8×</option></select>
+   <label>Traffic demand</label><select id="dem"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option><option value="rush">Rush hour</option><option value="custom">Custom</option></select>
+   <label>Vehicles per minute</label><input type="number" id="vpm" min="0" max="300" value="30">
+   <label>Random seed (applies on Reset)</label><input type="number" id="seed" value="42">
+   <label>Automated vehicles: <span id="autoV">30</span>%</label><input type="range" id="auto" min="0" max="100" value="30">
+   <label>Speed limit: <span id="limV">50</span> km/h</label><input type="range" id="lim" min="20" max="80" value="50">
+   <label>Add a vehicle</label><div class="row"><select id="addA"></select><select id="addT"><option value="car">Car</option><option value="bus">Bus</option><option value="truck">Truck</option><option value="moto">Motorcycle</option></select></div>
+   <button id="bAdd" style="width:100%;margin-top:4px">Add vehicle</button>
+   <label>Emergency vehicle</label><div class="row"><select id="emA"></select><button id="bEm">Spawn</button></div>
+   <button id="bTake" style="width:100%;margin-top:6px">Ask an automated car to hand over control</button>
+   <label>Scenario</label><div class="row"><select id="scn"></select><button id="bScn">Load</button></div>
+  </aside>
+  <section class="p"><canvas id="cv" width="640" height="640" aria-label="Intersection simulation"></canvas>
+   <small>Cyan outline = automated · orange = handing over · gold ring = front of FIFO queue · flashing = emergency</small></section>
+  <aside class="p" id="stats"></aside>
+ </div>
+ <div class="c3"><div class="p" id="fifo"></div><div class="p" id="sigp"></div><div class="p"><h2>Event log (includes DSA operations)</h2><div id="log"></div></div></div>
+ <div class="c3"><div class="p"><h2>Vehicle communication (V2V / V2I)</h2><small>Local in-memory message simulation. Nothing is transmitted wirelessly.</small><div id="cm"></div></div>
+  <div class="p" id="det"></div><div class="p" id="pqp"></div></div>
+ <div class="p"><h2>Live charts</h2><div class="c3" id="charts"></div></div>
+</section>
+
+<section id="dsa" class="tab" hidden style="display:grid;gap:10px">
+ <div class="c3">
+  <div class="p"><h2>Queue playground (FIFO)</h2><div class="row"><button id="pE">Enqueue</button><button id="pD">Dequeue</button><button id="pP">Peek</button><button id="pC">Clear</button></div>
+   <button id="pX" style="width:100%;margin:4px 0">Break FIFO on purpose (test the validator)</button><div id="pg"></div></div>
+  <div class="p"><h2>Hash map: vehicleId → Vehicle</h2><div id="hm" class="mono" style="font-size:12px"></div></div>
+  <div class="p"><h2>Priority queue (emergency) vs FIFO queue (normal)</h2>
+   <p><b>Normal traffic</b> → FIFO queue → first in, first out.<br><b>Emergency traffic</b> → priority queue → lowest priority number leaves first, ties go by arrival.</p><div id="pq2"></div></div>
+ </div>
+ <div class="p"><h2>Road network as a graph (adjacency list, intersection = node, road = edge)</h2>
+  <div class="c3"><div><textarea id="netTxt" rows="14" style="width:100%" class="mono" spellcheck="false"></textarea>
+   <div class="row"><button id="bNet">Import JSON network</button></div><small>Format: intersections (id, x, y, signal) and roads (from, to, lanes, speedLimit km/h). The importer validates it and uses the first road's speed limit. The engine simulates one signalised four-way junction; the other nodes appear in the graph and BFS only. CSV is not implemented.</small></div>
+   <div><div id="gr"></div><div id="adj" class="mono" style="font-size:12px"></div></div></div></div>
+ <div class="c3">
+  <div class="p"><h2>Complexity</h2><table><tr><td>enqueue, dequeue, peek, isEmpty, size</td><td class="r">O(1)</td></tr><tr><td>clear</td><td class="r">O(n)</td></tr><tr><td>Priority queue push / pop</td><td class="r">O(log n)</td></tr><tr><td>Priority queue peek</td><td class="r">O(1)</td></tr><tr><td>Hash map get / put</td><td class="r">O(1) avg</td></tr><tr><td>Graph BFS</td><td class="r">O(V+E)</td></tr><tr><td>Stack push / pop</td><td class="r">O(1)</td></tr></table></div>
+  <div class="p"><h2>Why a queue?</h2><p>Vehicles at a red light leave in the order they arrived. That is FIFO, so a queue models it directly. Here the front vehicle is released only by <span class="mono">dequeue()</span>, so removing the queue would stop the simulation from releasing vehicles.</p></div>
+  <div class="p"><h2>Self-tests</h2><button id="bTest" class="pri">Run all tests</button><div id="tests" style="margin-top:6px"></div></div>
+ </div>
+</section>
+
+<section id="sig" class="tab" hidden style="display:grid;gap:10px">
+ <div class="c3">
+  <div class="p"><h2>Signal editor</h2>
+   <label>Green North/South (s)</label><input type="number" id="gNS"><label>Green East/West (s)</label><input type="number" id="gEW">
+   <label>Yellow (s)</label><input type="number" id="yel"><label>All-red clearance (s)</label><input type="number" id="ar">
+   <label>Mode</label><select id="mode"><option value="FIXED">Fixed timing</option><option value="ADAPTIVE">Adaptive (by queue length)</option></select>
+   <label><input type="checkbox" id="epri" style="width:auto"> Emergency priority</label>
+   <div class="row" style="margin-top:8px"><button class="pri" id="bSig">Apply</button><button id="bUndo">Undo last change</button></div>
+   <p id="red" class="mono"></p><small>Undo uses the Stack data structure.</small></div>
+  <div class="p" id="sigLive"></div>
+  <div class="p"><h2>Traffic management rules</h2><p>Fixed: green stays as set. Adaptive: green = 6 s + 1.5 s per waiting vehicle on that axis, limited to 6–45 s. So a queue over 10 gets a longer green and a queue under 3 gets a short one.<br>Emergency: when an emergency vehicle is in the priority queue its axis gets green (after yellow and all-red), is held until it crosses, then normal cycling resumes.</p></div>
+ </div>
+ <div class="p"><h2>Presentation demo</h2><ol><li>Load "Normal traffic" and press Start.</li><li>Watch the signal go red; vehicles enqueue V01 → V02 → V03 in the FIFO panel.</li><li>The front vehicle is highlighted (FRONT and REAR shown).</li><li>On green, the log shows PEEK and DEQUEUE one vehicle at a time.</li><li>FIFO status stays PASSED. On the DSA page, break FIFO on purpose to see FAILED.</li><li>Spawn an emergency vehicle: the priority queue panel fills and its axis gets green.</li><li>Switch to Adaptive mode and open the charts.</li></ol></div>
+</section>
+</main>
+<footer>Educational simulation. It is not a certified traffic controller, real autonomous driving, or real wireless communication.</footer>
+
+<script>
+'use strict';
+const $=id=>document.getElementById(id),esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+/* ================= DATA STRUCTURES (own implementations) ================= */
+class QNode{constructor(v){this.value=v;this.next=null}}
+class Queue{ // FIFO: singly linked list with head (front) and tail (rear). First in, first out.
+ constructor(){this.head=null;this.tail=null;this._n=0}
+ enqueue(x){const n=new QNode(x);if(this.tail)this.tail.next=n;else this.head=n;this.tail=n;this._n++}
+ dequeue(){if(!this.head)throw new Error('Queue is empty');const v=this.head.value;this.head=this.head.next;if(!this.head)this.tail=null;this._n--;return v}
+ peek(){if(!this.head)throw new Error('Queue is empty');return this.head.value}
+ front(){return this.head?this.head.value:null}rear(){return this.tail?this.tail.value:null}
+ isEmpty(){return this._n===0}size(){return this._n}
+ clear(){this.head=this.tail=null;this._n=0}
+ toArray(){const a=[];for(let n=this.head;n;n=n.next)a.push(n.value);return a}}
+class PriorityQueue{ // binary min-heap; smaller priority number leaves first, ties by arrival sequence
+ constructor(){this.h=[];this.seq=0}
+ lt(a,b){return a.p<b.p||(a.p===b.p&&a.q<b.q)}
+ push(item,p){const h=this.h;h.push({p,q:this.seq++,item});let i=h.length-1;while(i>0){const j=(i-1)>>1;if(!this.lt(h[i],h[j]))break;[h[i],h[j]]=[h[j],h[i]];i=j}}
+ pop(){const h=this.h;if(!h.length)throw new Error('Priority queue is empty');const top=h[0],l=h.pop();if(h.length){h[0]=l;let i=0;for(;;){const a=2*i+1,b=a+1;let m=i;if(a<h.length&&this.lt(h[a],h[m]))m=a;if(b<h.length&&this.lt(h[b],h[m]))m=b;if(m===i)break;[h[i],h[m]]=[h[m],h[i]];i=m}}return top.item}
+ peek(){if(!this.h.length)throw new Error('Priority queue is empty');return this.h[0].item}
+ size(){return this.h.length}isEmpty(){return !this.h.length}
+ toArray(){return [...this.h].sort((a,b)=>a.p-b.p||a.q-b.q)}}
+class HashMap{ // separate chaining, doubles buckets when load factor > 0.75
+ constructor(){this.b=Array.from({length:8},()=>[]);this.n=0}
+ hash(k){let h=0;for(const c of String(k))h=(h*31+c.charCodeAt(0))>>>0;return h%this.b.length}
+ put(k,v){const bk=this.b[this.hash(k)];for(const e of bk)if(e[0]===k){e[1]=v;return}bk.push([k,v]);this.n++;if(this.n/this.b.length>.75)this.grow()}
+ get(k){for(const e of this.b[this.hash(k)])if(e[0]===k)return e[1];return undefined}
+ remove(k){const bk=this.b[this.hash(k)],i=bk.findIndex(e=>e[0]===k);if(i<0)return false;bk.splice(i,1);this.n--;return true}
+ grow(){const old=this.b;this.b=Array.from({length:old.length*2},()=>[]);this.n=0;for(const bk of old)for(const [k,v] of bk)this.put(k,v)}
+ keys(){return this.b.flat().map(e=>e[0])}}
+class Stack{constructor(){this.a=[]}push(x){this.a.push(x)}pop(){if(!this.a.length)throw new Error('Nothing to undo');return this.a.pop()}peek(){return this.a[this.a.length-1]}size(){return this.a.length}}
+class Graph{ // adjacency list: node -> list of edges
+ constructor(){this.adj=new HashMap();this.order=[];this.pos={};this.sig={}}
+ addNode(id,x,y,s){this.adj.put(id,[]);this.order.push(id);this.pos[id]={x,y};this.sig[id]=!!s}
+ addEdge(a,b,lanes,limit){const A=this.adj.get(a),B=this.adj.get(b);if(!A||!B)throw new Error(`Road ${a}-${b} uses an unknown intersection.`);A.push({to:b,lanes,limit});B.push({to:a,lanes,limit})}
+ bfs(s){const seen=new HashMap(),q=new Queue(),out=[];q.enqueue(s);seen.put(s,1);while(!q.isEmpty()){const n=q.dequeue();out.push(n);for(const e of this.adj.get(n))if(!seen.get(e.to)){seen.put(e.to,1);q.enqueue(e.to)}}return out}}
+class FifoValidator{ // compares departure order with arrival order
+ constructor(){this.arr=[];this.dep=[];this.status='PASSED';this.violations=0}
+ arrive(id){this.arr.push(id)}
+ depart(id){const exp=this.arr[this.dep.length];this.dep.push(id);if(id!==exp){this.status='FAILED';this.violations++;return false}return true}}
+class LocalChannel{constructor(){this.log=[]}send(from,to,msg,t){this.log.push({t,from,to,msg});if(this.log.length>120)this.log.shift()}}
+
+/* ================= SIMULATION ================= */
+const A4=['N','S','E','W'],NAMES={N:'North',S:'South',E:'East',W:'West'};
+const STOP=170,BOX=250,END=415,ZONE=50,DT=.1,K=1.5,C=320;
+const TYPES={car:{len:4.5,vmax:16.7,a:2,b:3.5,col:'#60a5fa'},bus:{len:11,vmax:13.9,a:1.2,b:3,col:'#f59e0b'},truck:{len:8,vmax:13.9,a:1,b:3,col:'#a78bfa'},moto:{len:2.2,vmax:19.4,a:3,b:4.5,col:'#34d399'},emergency:{len:5.5,vmax:22.2,a:3,b:4.5,col:'#fff'}};
+const DEF={seed:42,demand:'medium',vpm:30,auto:30,limit:13.9,mode:'FIXED',gNS:15,gEW:15,yellow:3,allRed:2,epri:true,w:{N:1,S:1,E:1,W:1},mix:{car:.6,bus:.1,truck:.1,moto:.2},script:null};
+const RATE={low:12,medium:30,high:60,rush:100},ORDER=['NS_GREEN','NS_YELLOW','AR1','EW_GREEN','EW_YELLOW','AR2'];
+const SCEN={normal:{name:'1. Normal traffic',cfg:{demand:'medium'}},
+ rush:{name:'2. Rush hour (heavy N/S)',cfg:{demand:'rush',w:{N:3,S:3,E:1,W:1}}},
+ emergency:{name:'3. Emergency vehicle from East',cfg:{demand:'low',script:[{t:25,type:'emergency',A:'E'}]}},
+ adaptive:{name:'4. Adaptive signal',cfg:{demand:'high',mode:'ADAPTIVE',w:{N:3,S:2,E:1,W:1}}},
+ automated:{name:'5. Automated vehicles',cfg:{demand:'medium',auto:85}},
+ mixed:{name:'6. Mixed traffic',cfg:{demand:'high',auto:40,mix:{car:.4,bus:.2,truck:.2,moto:.2},script:[{t:40,type:'emergency',A:'S'}]}}};
+const pairOf=A=>A==='N'||A==='S'?'NS':'EW';
+function rng(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+class Sim{
+ constructor(c){this.reset(c)}
+ reset(c){const cf=this.cfg=Object.assign({},DEF,c||this.cfg);
+  this.rng=rng(cf.seed);this.t=0;this.idc=0;this.eidc=0;this.acc=0;this.nextSample=0;
+  this.reg=new HashMap();this.pq=new PriorityQueue();this.chan=new LocalChannel();
+  this.lane={};this.elane={};this.q={};this.val={};this.det={};this.cnt={};this.op={};
+  for(const A of A4){this.lane[A]=[];this.elane[A]=[];this.q[A]=new Queue();this.val[A]=new FifoValidator();this.det[A]={in:0,out:0};this.cnt[A]={e:0,d:0};this.op[A]='none yet'}
+  this.log=[];this.script=(cf.script||[]).map(x=>({...x}));
+  this.st={spawned:0,passed:0,waitSum:0,waitN:0,maxQ:0,travelSum:0,travelN:0,em:0,pass:[],hist:[],types:{car:0,bus:0,truck:0,moto:0,emergency:0}};
+  this.sig={phase:'NS_GREEN',t:0,dur:cf.gNS,preempt:null,ps:'NORMAL'};
+  this.ev(`Simulation ready. Seed ${cf.seed}, ${cf.mode} signals.`,'sys')}
+ ev(msg,k){this.log.push({t:this.t,msg,k:k||''});if(this.log.length>400)this.log.shift()}
+ sigState(A){const p=this.sig.phase,q=pairOf(A);return p===q+'_GREEN'?'GREEN':p===q+'_YELLOW'?'YELLOW':'RED'}
+ greenFor(pr){const c=this.cfg;if(c.mode!=='ADAPTIVE')return pr==='NS'?c.gNS:c.gEW;
+  const d=pr==='NS'?this.q.N.size()+this.q.S.size():this.q.E.size()+this.q.W.size();
+  const g=Math.max(6,Math.min(45,6+1.5*d));this.ev(`Adaptive: ${pr} queue ${d} vehicles → green ${g.toFixed(0)}s`,'sig');return g}
+ startPhase(p){const s=this.sig,c=this.cfg;s.phase=p;s.t=0;
+  s.dur=p==='NS_GREEN'?this.greenFor('NS'):p==='EW_GREEN'?this.greenFor('EW'):p.endsWith('YELLOW')?c.yellow:c.allRed;
+  this.ev(`Signal phase ${p.replace('_',' ')} (${s.dur.toFixed(0)}s)`,'sig');
+  for(const A of A4){let n=0;for(const v of this.lane[A]){if(v.auto&&v.s<STOP&&n++<2)this.chan.send('SIGNAL-'+A,v.id,`${this.sigState(A)} for ${s.dur.toFixed(0)}s`,this.t)}}}
+ emTarget(){while(!this.pq.isEmpty()){const e=this.pq.peek();if(e.exited||e.s>STOP+5)this.pq.pop();else return pairOf(e.A)}return null}
+ updateSignal(dt){const s=this.sig;s.t+=dt;const tg=this.cfg.epri?this.emTarget():null;
+  if(tg!==s.preempt){this.ev(tg?`Emergency priority activated for ${tg} axis`:'Emergency priority deactivated','em');s.preempt=tg}
+  s.ps=tg?(s.phase===tg+'_GREEN'?'PREEMPT_GREEN':'PREEMPT_CLEARING'):'NORMAL';
+  if(tg&&s.phase===tg+'_GREEN'){if(s.t>s.dur-1)s.t=s.dur-1;return}
+  const other=tg==='NS'?'EW':'NS';
+  if(tg&&s.phase===other+'_GREEN'&&s.t>=3){this.startPhase(other+'_YELLOW');return}
+  if(s.t>=s.dur){let n=ORDER[(ORDER.indexOf(s.phase)+1)%6];if(tg&&n.endsWith('GREEN'))n=tg+'_GREEN';this.startPhase(n)}}
+ pickType(){let r=this.rng();const m=this.cfg.mix;for(const k in m){if(r<m[k])return k;r-=m[k]}return'car'}
+ generate(dt){const c=this.cfg,vpm=c.demand==='custom'?c.vpm:RATE[c.demand],sw=A4.reduce((a,A)=>a+c.w[A],0);
+  for(const A of A4)if(this.rng()<vpm*c.w[A]/sw/60*dt)this.spawn(this.pickType(),A);
+  for(const x of this.script)if(!x.done&&this.t>=x.t&&this.spawn(x.type,x.A))x.done=true}
+ spawn(type,A){const T=TYPES[type],em=type==='emergency',L=em?this.elane[A]:this.lane[A],last=L[L.length-1];
+  if(last&&last.s-last.len<6)return null;
+  const auto=!em&&this.rng()*100<this.cfg.auto,id=(em?'E':'V')+String(em?++this.eidc:++this.idc).padStart(em?2:3,'0');
+  const v={id,type,A,em,s:0,len:T.len,speed:Math.min(10,last?last.speed:10),auto,ctl:auto?'AUTOMATED':'MANUAL',state:'APPROACHING',t0:this.t,wait:0,timer:0,lm:-9,braking:false,exited:false};
+  L.push(v);this.reg.put(id,v);this.st.spawned++;this.st.types[type]++;
+  if(em){this.pq.push(v,0);this.st.em++;this.ev(`Emergency vehicle ${id} detected on ${NAMES[A]} approach`,'em')}
+  else this.ev(`Vehicle ${id} (${type}, ${auto?'automated':'manual'}) arrived from ${NAMES[A]}`);
+  return v}
+ addVehicle(type,A){if(!TYPES[type]||!A4.includes(A))throw new Error('Invalid vehicle type or approach.');
+  const v=this.spawn(type,A);if(!v)throw new Error(`The ${NAMES[A]} entrance is occupied. Try again in a moment.`);return v}
+ takeover(){const c=[];for(const A of A4)for(const v of this.lane[A])if(v.ctl==='AUTOMATED')c.push(v);
+  if(!c.length)throw new Error('No automated vehicle on the road. Raise the automated % and wait for arrivals.');
+  const v=c[Math.floor(this.rng()*c.length)];v.ctl='REQUESTING_CONTROL';v.timer=5;this.ev(`${v.id}: takeover requested, 5 s countdown`,'toc')}
+ enq(v,A){const q=this.q[A];q.enqueue(v);this.val[A].arrive(v.id);v.state='QUEUED';this.cnt[A].e++;this.op[A]='ENQUEUE → '+v.id;
+  this.ev(`ENQUEUE(${v.id}) → ${NAMES[A]} queue, size ${q.size()}`,'dsa')}
+ deq(A){const q=this.q[A],p=q.peek(),v=q.dequeue(),ok=this.val[A].depart(v.id);v.state='CROSSING';this.cnt[A].d++;this.op[A]='DEQUEUE → '+v.id;
+  this.ev(`PEEK() → ${p.id}`,'dsa');this.ev(`DEQUEUE(${v.id}) ← ${NAMES[A]} queue, size ${q.size()}`,'dsa');
+  if(!ok)this.ev(`FIFO_VIOLATION: ${v.id} left the ${NAMES[A]} queue out of order`,'err')}
+ stepLane(A,L,dt,isEm){const sg=this.sigState(A),q=this.q[A];
+  for(let i=0;i<L.length;i++){const v=L[i],T=TYPES[v.type],lead=i?L[i-1]:null,em=v.em;
+   const vmax=em?T.vmax:Math.min(T.vmax,this.cfg.limit),canStop=v.speed*v.speed/(2*T.b)<STOP-v.s-2;
+   // Signal check + enqueue: RED (or unable-to-pass YELLOW, or a queue already exists) → join the REAR of the FIFO queue
+   if(!em&&v.state==='APPROACHING'&&v.s>=ZONE&&v.s<STOP-3&&(!lead||lead.state!=='APPROACHING'||lead.s>=STOP-3)&&(!q.isEmpty()||sg==='RED'||(sg==='YELLOW'&&canStop)))this.enq(v,A);
+   let gap=1e9,dv=0;if(lead){gap=lead.s-lead.len-v.s;dv=v.speed-lead.speed}
+   // Stop-line obstacle: the queue front is held here until dequeue() releases it on green
+   const red=sg!=='GREEN'&&!(sg==='YELLOW'&&!canStop);
+   const obs=em?(v.s<STOP&&red):(v.state==='QUEUED'&&q.front()===v&&sg!=='GREEN');
+   if(obs&&STOP-v.s<gap){gap=STOP-v.s;dv=v.speed}
+   // Intelligent Driver Model (simplified). Automated: shorter time headway, no driver slack.
+   const Th=v.auto?1:1.5,a=T.a*(v.auto?1:.85),sS=2+Math.max(0,v.speed*Th+v.speed*dv/(2*Math.sqrt(a*T.b)));
+   let ac=Math.max(a*(1-Math.pow(v.speed/vmax,4)-Math.pow(sS/Math.max(gap,.1),2)),-9);
+   v.braking=ac<-2;v.speed=Math.max(0,v.speed+ac*dt);let ns=v.s+v.speed*dt;
+   if(lead){const lim=lead.s-lead.len-.5;if(ns>lim){ns=Math.max(v.s,lim);v.speed=Math.min(v.speed,lead.speed)}} // collision guard
+   v.s=ns;
+   if(v.speed<.3&&v.s<STOP+2)v.wait+=dt;
+   if(v.state==='QUEUED'&&q.front()===v&&sg==='GREEN'&&v.s>=STOP-8)this.deq(A);
+   if(v.state==='APPROACHING'&&v.s>=STOP)v.state='CROSSING';
+   if(!v.li&&v.s>=ZONE){v.li=1;if(!em)this.det[A].in++}
+   if(!v.lo&&v.s>=STOP){v.lo=1;this.det[A].out++}
+   if(!v.done&&v.s>=BOX){v.done=1;const st=this.st;st.passed++;st.pass.push(this.t);st.travelSum+=this.t-v.t0;st.travelN++;st.waitSum+=v.wait;st.waitN++;this.ev(`${v.id} crossed the intersection`,em?'em':'')}
+   if(v.s>END){v.exited=true;this.reg.remove(v.id)}
+   if(v.ctl==='REQUESTING_CONTROL'){v.timer-=dt;if(v.timer<=0){v.ctl='DRIVER_TAKEOVER';v.timer=1+this.rng()*2;this.ev(`${v.id}: driver is taking over`,'toc')}}
+   else if(v.ctl==='DRIVER_TAKEOVER'){v.timer-=dt;if(v.timer<=0){v.ctl='MANUAL';v.auto=false;this.ev(`${v.id}: control transferred → MANUAL`,'toc')}}
+   if(v.auto&&v.braking&&this.t-v.lm>2){const f=L[i+1];if(f&&f.auto&&v.s-f.s<100){v.lm=this.t;this.chan.send(v.id,f.id,'Brake detected',this.t)}}
+  }
+  this[isEm?'elane':'lane'][A]=L.filter(v=>!v.exited)}
+ step(){const dt=DT;this.t+=dt;this.generate(dt);this.updateSignal(dt);
+  for(const A of A4){this.stepLane(A,this.lane[A],dt,false);this.stepLane(A,this.elane[A],dt,true)}
+  let tq=0;for(const A of A4){const n=this.q[A].size();tq+=n;if(n>this.st.maxQ)this.st.maxQ=n}
+  if(this.t>=this.nextSample){this.nextSample+=2;const s=this.st;s.pass=s.pass.filter(x=>x>this.t-60);
+   s.hist.push({t:this.t,q:tq,thr:s.pass.length,w:s.waitN?s.waitSum/s.waitN:0});if(s.hist.length>150)s.hist.shift()}}}
+
+/* ================= UI ================= */
+const COL={GREEN:'#22c55e',YELLOW:'#facc15',RED:'#ef4444'},fmt=t=>Math.floor(t/60)+':'+String(Math.floor(t%60)).padStart(2,'0');
+let sim=new Sim(),run=false,stopped=false,mult=1,last=performance.now(),selA='N',tab='sim',net=null;
+const undo=new Stack(),cv=$('cv'),g=cv.getContext('2d');
+function toast(m){const t=$('toast');t.textContent=m;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,3200)}
+const tryit=f=>{try{f()}catch(e){toast(e.message)}};
+for(const id of['addA','emA'])$(id).innerHTML=A4.map(a=>`<option value="${a}"${a==='E'?' selected':''}>${NAMES[a]}</option>`).join('');
+$('scn').innerHTML=Object.entries(SCEN).map(([k,s])=>`<option value="${k}">${s.name}</option>`).join('');
+function sync(){const c=sim.cfg;$('dem').value=c.demand;$('vpm').value=c.demand==='custom'?c.vpm:RATE[c.demand];$('seed').value=c.seed;$('auto').value=c.auto;$('autoV').textContent=c.auto;
+ $('lim').value=Math.round(c.limit*3.6);$('limV').textContent=Math.round(c.limit*3.6);$('gNS').value=c.gNS;$('gEW').value=c.gEW;$('yel').value=c.yellow;$('ar').value=c.allRed;$('mode').value=c.mode;$('epri').checked=c.epri}
+$('tabs').onclick=e=>{const t=e.target.dataset.t;if(!t)return;tab=t;document.querySelectorAll('.tab').forEach(s=>s.hidden=s.id!==t);document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));panels()};
+$('bStart').onclick=()=>{if(stopped){sim.reset();stopped=false}run=true;$('bPause').textContent='Pause';sim.ev('Simulation started','sys')};
+$('bPause').onclick=()=>{if(stopped)return;run=!run;$('bPause').textContent=run?'Pause':'Resume';sim.ev(run?'Simulation resumed':'Simulation paused','sys')};
+$('bStop').onclick=()=>{run=false;stopped=true;sim.ev('Simulation stopped. Press Start for a fresh run.','sys')};
+$('bReset').onclick=()=>{const s=+$('seed').value;if(!Number.isInteger(s))return toast('Seed must be a whole number.');sim.cfg.seed=s;sim.reset();run=false;stopped=false;$('bPause').textContent='Pause'};
+$('spd').onchange=e=>mult=+e.target.value;
+$('dem').onchange=e=>{sim.cfg.demand=e.target.value;$('vpm').value=e.target.value==='custom'?sim.cfg.vpm:RATE[e.target.value]};
+$('vpm').oninput=e=>{const v=+e.target.value;if(!(v>=0&&v<=300))return toast('Vehicles per minute must be 0–300.');sim.cfg.vpm=v;sim.cfg.demand='custom';$('dem').value='custom'};
+$('auto').oninput=e=>{sim.cfg.auto=+e.target.value;$('autoV').textContent=e.target.value};
+$('lim').oninput=e=>{sim.cfg.limit=+e.target.value/3.6;$('limV').textContent=e.target.value};
+$('bAdd').onclick=()=>tryit(()=>sim.addVehicle($('addT').value,$('addA').value));
+$('bEm').onclick=()=>tryit(()=>sim.addVehicle('emergency',$('emA').value));
+$('bTake').onclick=()=>tryit(()=>sim.takeover());
+$('bScn').onclick=()=>{const s=SCEN[$('scn').value];sim.reset(Object.assign({seed:sim.cfg.seed},s.cfg));sync();run=true;stopped=false;$('bPause').textContent='Pause';sim.ev('Scenario loaded: '+s.name,'sys')};
+$('bSig').onclick=()=>{const v=[+$('gNS').value,+$('gEW').value,+$('yel').value,+$('ar').value],bad=(x,a,b)=>!(x>=a&&x<=b);
+ if(bad(v[0],5,90)||bad(v[1],5,90))return toast('Green time must be between 5 and 90 seconds.');if(bad(v[2],2,6))return toast('Yellow must be between 2 and 6 seconds.');if(bad(v[3],1,5))return toast('All-red must be between 1 and 5 seconds.');
+ const c=sim.cfg;undo.push({gNS:c.gNS,gEW:c.gEW,yellow:c.yellow,allRed:c.allRed,mode:c.mode,epri:c.epri});
+ Object.assign(c,{gNS:v[0],gEW:v[1],yellow:v[2],allRed:v[3],mode:$('mode').value,epri:$('epri').checked});sim.ev('Signal settings updated','sig');toast('Signal settings applied.')};
+$('bUndo').onclick=()=>tryit(()=>{Object.assign(sim.cfg,undo.pop());sync();sim.ev('Signal settings restored (undo)','sig')});
+document.addEventListener('click',e=>{const a=e.target.dataset&&e.target.dataset.a;if(a){selA=a;panels()}});
+
+/* ---- drawing ---- */
+function xy(A,s,off){const d=(210-s)*K;return A==='N'?{x:C-off,y:C-d,r:Math.PI/2}:A==='S'?{x:C+off,y:C+d,r:-Math.PI/2}:A==='E'?{x:C+d,y:C-off,r:Math.PI}:{x:C-d,y:C+off,r:0}}
+function mark(A,s,off,w,h,col){const p=xy(A,s,off);g.save();g.translate(p.x,p.y);g.rotate(p.r);g.fillStyle=col;g.fillRect(-h/2,-w/2,h,w);g.restore()}
+function draw(){g.fillStyle='#6b8a67';g.fillRect(0,0,640,640);g.fillStyle='#3a3f47';g.fillRect(C-60,0,120,640);g.fillRect(0,C-60,640,120);
+ g.strokeStyle='#facc15';g.lineWidth=2;g.beginPath();for(const s of[-1,1]){g.moveTo(C+s,0);g.lineTo(C+s,C-60);g.moveTo(C+s,C+60);g.lineTo(C+s,640);g.moveTo(0,C+s);g.lineTo(C-60,C+s);g.moveTo(C+60,C+s);g.lineTo(640,C+s)}g.stroke();
+ g.strokeStyle='#cbd5e1';g.lineWidth=1;g.setLineDash([8,8]);g.beginPath();for(const s of[-36,36]){g.moveTo(C+s,0);g.lineTo(C+s,C-60);g.moveTo(C+s,C+60);g.lineTo(C+s,640);g.moveTo(0,C+s);g.lineTo(C-60,C+s);g.moveTo(C+60,C+s);g.lineTo(640,C+s)}g.stroke();g.setLineDash([]);
+ g.fillStyle='#fff';g.fillRect(C-60,C-62,60,4);g.fillRect(C,C+58,60,4);g.fillRect(C+58,C-60,4,60);g.fillRect(C-62,C,4,60);
+ const lp={N:[C-80,C-74],S:[C+80,C+74],E:[C+74,C-80],W:[C-74,C+80]};g.textAlign='center';
+ for(const A of A4){const st=sim.sigState(A),[x,y]=lp[A];g.fillStyle='#111';g.beginPath();g.arc(x,y,13,0,7);g.fill();g.fillStyle=COL[st];g.beginPath();g.arc(x,y,9,0,7);g.fill();
+  g.fillStyle='#fff';g.font='11px system-ui';g.fillText(A,x,y-17);if(st!=='RED'){g.fillStyle='#000';g.font='bold 9px monospace';g.fillText(Math.max(0,sim.sig.dur-sim.sig.t).toFixed(0),x,y+3)}
+  mark(A,ZONE,18,34,3,'#22d3ee');mark(A,STOP-6,18,34,3,'#22d3ee')}
+ for(const A of A4)for(const v of[...sim.lane[A],...sim.elane[A]]){const p=xy(A,v.s-v.len/2,v.em?44:18),w=v.type==='bus'||v.type==='truck'?14:v.type==='moto'?6:11,l=v.len*K;
+  g.save();g.translate(p.x,p.y);g.rotate(p.r);g.fillStyle=v.em?(Math.floor(sim.t*4)%2?'#ef4444':'#3b82f6'):TYPES[v.type].col;g.fillRect(-l/2,-w/2,l,w);
+  if(v.ctl!=='MANUAL'){g.lineWidth=2;g.strokeStyle=v.ctl==='AUTOMATED'?'#22d3ee':'#f97316';g.strokeRect(-l/2,-w/2,l,w)}g.restore();
+  if(v.state==='QUEUED'){g.fillStyle='#000';g.font='bold 9px monospace';g.fillText(v.id.slice(1),p.x,p.y+3);
+   if(sim.q[A].front()===v){g.strokeStyle='#facc15';g.lineWidth=2;g.beginPath();g.arc(p.x,p.y,Math.max(w,l)/2+4,0,7);g.stroke()}}}}
+
+/* ---- panels ---- */
+const kv=(k,v)=>`<tr><td>${k}</td><td class="r">${v}</td></tr>`;
+function allV(){const a=[];for(const A of A4)a.push(...sim.lane[A],...sim.elane[A]);return a}
+function chart(key,col,title){const h=sim.st.hist;if(h.length<2)return `<div class="ch"><small>${title}</small><br><em>collecting data…</em></div>`;
+ const mx=Math.max(1,...h.map(p=>p[key])),pts=h.map((p,i)=>(i/(h.length-1)*240).toFixed(1)+','+(57-p[key]/mx*52).toFixed(1)).join(' ');
+ return `<div class="ch"><small>${title} (max ${mx.toFixed(1)})</small><svg viewBox="0 0 240 60" preserveAspectRatio="none"><polyline fill="none" stroke="${col}" stroke-width="2" points="${pts}"/></svg></div>`}
+function panels(){const S=sim,st=S.st,all=allV(),wq=A4.reduce((a,A)=>a+S.q[A].size(),0),thr=st.pass.filter(x=>x>S.t-60).length,sp=all.length?all.reduce((a,v)=>a+v.speed,0)/all.length*3.6:0;
+ if(tab==='sim'){
+ $('stats').innerHTML=`<h2>Statistics</h2><table>${kv('Simulation time',fmt(S.t))}${kv('Current signal (N/S · E/W)',S.sigState('N')+' · '+S.sigState('E'))}${kv('Total vehicles',st.spawned)}${kv('Waiting in queues',wq)}${kv('Vehicles passed',st.passed)}${kv('Average waiting time',(st.waitN?st.waitSum/st.waitN:0).toFixed(1)+' s')}${kv('Maximum queue length',st.maxQ)}${kv('Average speed',sp.toFixed(1)+' km/h')}${kv('Average travel time',(st.travelN?st.travelSum/st.travelN:0).toFixed(1)+' s')}${kv('Throughput (last 60 s)',thr)}${kv('Emergency vehicles',st.em)}${kv('Automated / manual on road',all.filter(v=>v.auto).length+' / '+all.filter(v=>!v.auto).length)}</table>
+ <h2 style="margin-top:10px">Vehicle types (spawned)</h2>${['car','bus','truck','moto','emergency'].map(k=>`<div style="display:flex;gap:6px;align-items:center;font-size:12px"><span style="width:70px">${k}</span><div class="bar" style="width:${st.spawned?st.types[k]/st.spawned*100:0}%;background:${TYPES[k].col==='#fff'?'#ef4444':TYPES[k].col}"></div>${st.types[k]}</div>`).join('')}
+ <h2 style="margin-top:10px">Handover of control</h2>${all.filter(v=>v.ctl!=='MANUAL'&&v.ctl!=='AUTOMATED'||(v.type&&!v.auto&&v.ctl==='MANUAL'&&false)).map(v=>`<div class="toc mono">${v.id}: ${v.ctl}${v.timer>0?' ('+v.timer.toFixed(1)+'s)':''}</div>`).join('')||'<em>None in progress. States: AUTOMATED → REQUESTING_CONTROL → DRIVER_TAKEOVER → MANUAL.</em>'}`;
+ const A=selA,q=S.q[A],v=S.val[A],items=q.toArray();
+ $('fifo').innerHTML=`<h2>FIFO Queue Visualization: first in, first out</h2><div class="row">${A4.map(x=>`<button data-a="${x}" class="${x===A?'on':''}">${NAMES[x]} (${S.q[x].size()})</button>`).join('')}</div>
+ <div class="fr" style="margin-top:6px"><span>FRONT ↓</span><span>REAR ↓</span></div><div class="qrow">${items.slice(0,10).map((x,i)=>`<span class="b${i?'':' f'}">${x.id}</span>`).join('<i>→</i>')||'<em>Queue empty. Nothing is waiting.</em>'}${items.length>10?`<em>+${items.length-10} more</em>`:''}</div>
+ <table>${kv('First arrived (this run)',v.arr[0]||'–')}${kv('Next to leave (front)',q.front()?q.front().id:'–')}${kv('Latest arrival (rear)',q.rear()?q.rear().id:'–')}${kv('Queue size',q.size())}${kv('Enqueue / dequeue operations',S.cnt[A].e+' / '+S.cnt[A].d)}${kv('Last operation',S.op[A])}</table>
+ <div class="mono" style="font-size:12px"><b>Arrival order:</b> ${v.arr.slice(-9).join(' → ')||'–'}<br><b>Departure order:</b> ${v.dep.slice(-9).join(' → ')||'–'}</div>
+ <p>FIFO STATUS: <span class="${v.status==='PASSED'?'ok':'bad'}">${v.status==='PASSED'?'PASSED ✓':'FAILED ✗'}</span> <small>(${v.violations} violations)</small></p>`;
+ $('sigp').innerHTML=sigHTML();
+ $('log').innerHTML=S.log.slice(-40).reverse().map(e=>`<div class="${e.k}"><b class="mono">${fmt(e.t)}</b> ${esc(e.msg)}</div>`).join('');
+ $('cm').innerHTML=S.chan.log.slice(-14).reverse().map(m=>`<div class="mono">${m.from} → ${m.to}: ${m.msg}</div>`).join('')||'<em>No messages yet. Automated vehicles send brake alerts (V2V) and receive signal state (V2I).</em>';
+ $('det').innerHTML='<h2>Traffic detectors</h2><table><tr><th>Road</th><th>Loop in</th><th>Loop out</th><th>Camera: veh · queue · km/h · occupancy</th></tr>'+A4.map(a=>{const on=[...S.lane[a],...S.elane[a]].filter(v=>v.s<STOP),s2=on.length?on.reduce((x,v)=>x+v.speed,0)/on.length*3.6:0,oc=Math.min(100,on.reduce((x,v)=>x+v.len,0)/STOP*100);
+  return `<tr><td>${NAMES[a]}</td><td class="r">${S.det[a].in}</td><td class="r">${S.det[a].out}</td><td class="r">${on.length} · ${S.q[a].size()} · ${s2.toFixed(0)} · ${oc.toFixed(0)}%</td></tr>`}).join('')+'</table>';
+ $('pqp').innerHTML='<h2>Emergency traffic → priority queue</h2><small>Normal traffic uses FIFO queues; emergency vehicles use this separate priority queue.</small><table><tr><th>Vehicle</th><th>Priority</th><th>Road</th><th>Position</th></tr>'+(S.pq.toArray().map(x=>`<tr><td>${x.item.id}</td><td>${x.p}</td><td>${NAMES[x.item.A]}</td><td>${x.item.s.toFixed(0)} m</td></tr>`).join('')||'<tr><td colspan="4"><em>Empty. Spawn an emergency vehicle.</em></td></tr>')+'</table>';
+ $('charts').innerHTML=chart('q','#ef4444','Queue length vs time')+chart('thr','#22c55e','Vehicles passed per minute')+chart('w','#f59e0b','Average waiting time (s)');}
+ if(tab==='dsa'){
+ $('hm').innerHTML=`size ${S.reg.n}, buckets ${S.reg.b.length}, load ${(S.reg.n/S.reg.b.length).toFixed(2)}<br>`+S.reg.b.map((b,i)=>b.map(([k,v])=>`[${i}] ${k} → {${v.type}, ${v.A}, ${v.s.toFixed(0)} m, ${v.state}}`)).flat().slice(0,14).join('<br>');
+ $('pq2').innerHTML=S.pq.toArray().map(x=>`<div class="mono">${x.item.id} priority ${x.p} (${NAMES[x.item.A]})</div>`).join('')||'<em>Priority queue is empty.</em>'}
+ if(tab==='sig'){$('sigLive').innerHTML=sigHTML();$('red').textContent=`Red for N/S = E/W green + yellow + 2×all-red = ${(+$('gEW').value)+(+$('yel').value)+2*(+$('ar').value)} s`}}
+function sigHTML(){const s=sim.sig;return '<h2>Live signal status</h2>'+A4.map(A=>{const st=sim.sigState(A);return `<span class="lamp" style="background:${COL[st]}"></span> ${NAMES[A]}: <b>${st}</b><br>`}).join('')+`<p>Phase <b>${s.phase.replace('_',' ')}</b>, ${Math.max(0,s.dur-s.t).toFixed(1)} s left<br>Mode <b>${sim.cfg.mode}</b><br>Emergency handling <b>${s.ps}</b></p>`}
+
+/* ---- DSA playground ---- */
+let pq=new Queue(),pv=new FifoValidator(),pn=0,pop='Ready';
+function pg(){const it=pq.toArray();$('pg').innerHTML=`<div class="fr" style="margin-top:6px"><span>FRONT ↓</span><span>REAR ↓</span></div><div class="qrow">${it.map((x,i)=>`<span class="b${i?'':' f'}">${x}</span>`).join('<i>→</i>')||'<em>empty</em>'}</div><table>${kv('Size',pq.size())}${kv('Last operation',pop)}</table><div class="mono" style="font-size:12px">Arrival: ${pv.arr.join(' → ')||'–'}<br>Departure: ${pv.dep.join(' → ')||'–'}</div><p>FIFO STATUS: <span class="${pv.status==='PASSED'?'ok':'bad'}">${pv.status==='PASSED'?'PASSED ✓':'FAILED ✗'}</span></p>`}
+$('pE').onclick=()=>{const id='P'+String(++pn).padStart(2,'0');pq.enqueue(id);pv.arrive(id);pop='enqueue → '+id;pg()};
+$('pD').onclick=()=>tryit(()=>{const id=pq.dequeue();pv.depart(id);pop='dequeue → '+id;pg()});
+$('pP').onclick=()=>tryit(()=>{pop='peek → '+pq.peek();pg()});
+$('pC').onclick=()=>{pq.clear();pv=new FifoValidator();pn=0;pop='clear';pg()};
+$('pX').onclick=()=>{const a=pq.toArray();if(a.length<2)return toast('Enqueue at least 2 items first.');pq.clear();a.filter((_,i)=>i!==1).forEach(x=>pq.enqueue(x));pv.depart(a[1]);pop=`cheat: ${a[1]} left before ${a[0]}`;pg()};
+
+/* ---- network import / graph view ---- */
+const SAMPLE={intersections:[{id:'Center',x:300,y:170,signal:true},{id:'North',x:300,y:40},{id:'South',x:300,y:300},{id:'East',x:520,y:170},{id:'West',x:80,y:170}],roads:[{from:'North',to:'Center',lanes:2,speedLimit:50},{from:'South',to:'Center',lanes:2,speedLimit:50},{from:'East',to:'Center',lanes:2,speedLimit:50},{from:'West',to:'Center',lanes:2,speedLimit:50}]};
+$('netTxt').value=JSON.stringify(SAMPLE,null,1);
+function parseNet(txt){let d;try{d=JSON.parse(txt)}catch(e){throw new Error('Invalid JSON: '+e.message)}
+ if(!d||!Array.isArray(d.intersections)||!d.intersections.length)throw new Error('"intersections" must be a non-empty array.');
+ if(!Array.isArray(d.roads))throw new Error('"roads" must be an array.');
+ const gr=new Graph(),ids=new Set();
+ for(const n of d.intersections){if(typeof n.id!=='string'||!n.id)throw new Error('Every intersection needs a text "id".');if(ids.has(n.id))throw new Error('Duplicate intersection id: '+n.id);if(!(isFinite(n.x)&&isFinite(n.y)))throw new Error(`Intersection ${n.id} needs numeric x and y.`);ids.add(n.id);gr.addNode(n.id,n.x,n.y,n.signal)}
+ for(const r of d.roads){if(!(r.lanes>=1)||!(r.speedLimit>0))throw new Error(`Road ${r.from}-${r.to} needs lanes ≥ 1 and speedLimit > 0.`);gr.addEdge(r.from,r.to,r.lanes,r.speedLimit)}
+ gr.limit=d.roads.length?d.roads[0].speedLimit:null;return gr}
+function showNet(gr){const xs=gr.order.map(n=>gr.pos[n].x),ys=gr.order.map(n=>gr.pos[n].y),x0=Math.min(...xs),y0=Math.min(...ys),sx=520/Math.max(1,Math.max(...xs)-x0),sy=280/Math.max(1,Math.max(...ys)-y0),p=n=>[40+(gr.pos[n].x-x0)*sx,30+(gr.pos[n].y-y0)*sy],bfs=gr.bfs(gr.order[0]);let e='';
+ for(const n of gr.order)for(const ed of gr.adj.get(n))if(n<ed.to){const[a,b]=p(n),[c,d]=p(ed.to);e+=`<line x1="${a}" y1="${b}" x2="${c}" y2="${d}" stroke="#94a3b8" stroke-width="${2*ed.lanes}"/>`}
+ $('gr').innerHTML=`<svg viewBox="0 0 600 340" style="width:100%;background:var(--bg);border-radius:6px">${e}${gr.order.map(n=>{const[x,y]=p(n);return `<circle cx="${x}" cy="${y}" r="16" fill="${gr.sig[n]?'#22c55e':'#3b82f6'}"/><text x="${x}" y="${y+4}" text-anchor="middle" fill="#fff" font-size="11">${bfs.indexOf(n)+1}</text><text x="${x}" y="${y+32}" text-anchor="middle" fill="currentColor" font-size="11">${esc(n)}</text>`}).join('')}</svg><small>Numbers show BFS visit order from ${esc(gr.order[0])}; green = signalised.</small>`;
+ $('adj').innerHTML='<br>'+gr.order.map(n=>esc(n)+' → '+gr.adj.get(n).map(x=>esc(x.to)).join(', ')).join('<br>')+'<br><br>BFS: '+bfs.map(esc).join(' → ')}
+$('bNet').onclick=()=>tryit(()=>{const gr=parseNet($('netTxt').value);net=gr;showNet(gr);if(gr.limit){sim.cfg.limit=gr.limit/3.6;sync()}toast('Network imported: '+gr.order.length+' intersections.')});
+
+/* ---- self-tests ---- */
+function runTests(){const T=[],t=(n,f)=>T.push([n,f]),ok=(c,m)=>{if(!c)throw new Error(m||'assertion failed')},low={demand:'custom',vpm:0,seed:1};
+ t('Queue FIFO: enqueue V1,V2,V3 → dequeue V1,V2,V3',()=>{const q=new Queue();['V1','V2','V3'].forEach(x=>q.enqueue(x));ok(q.dequeue()==='V1');ok(q.dequeue()==='V2');ok(q.dequeue()==='V3');ok(q.isEmpty())});
+ t('Queue: peek, front, rear, size, clear',()=>{const q=new Queue();q.enqueue(1);q.enqueue(2);ok(q.peek()===1&&q.front()===1&&q.rear()===2&&q.size()===2);q.clear();ok(q.isEmpty()&&q.front()===null)});
+ t('Queue: dequeue/peek on empty queue throw an error',()=>{let n=0;for(const f of['dequeue','peek'])try{new Queue()[f]()}catch(e){n++}ok(n===2)});
+ t('FIFO validator: PASSED in order, FAILED if V2 leaves before V1',()=>{let v=new FifoValidator();['V1','V2'].forEach(x=>v.arrive(x));v.depart('V1');v.depart('V2');ok(v.status==='PASSED');v=new FifoValidator();['V1','V2'].forEach(x=>v.arrive(x));v.depart('V2');ok(v.status==='FAILED')});
+ t('Priority queue: emergency first, ties in arrival order',()=>{const p=new PriorityQueue();p.push('bus',5);p.push('E1',0);p.push('E2',0);ok(p.pop()==='E1'&&p.pop()==='E2'&&p.pop()==='bus'&&p.isEmpty())});
+ t('Hash map: put, get, update, remove, resize',()=>{const m=new HashMap();for(let i=0;i<50;i++)m.put('V'+i,i);ok(m.n===50&&m.get('V37')===37);m.put('V37',99);ok(m.get('V37')===99&&m.n===50);ok(m.remove('V5')&&m.get('V5')===undefined&&m.n===49)});
+ t('Stack: last in, first out',()=>{const s=new Stack();s.push(1);s.push(2);ok(s.pop()===2&&s.pop()===1)});
+ t('Graph: BFS and unknown-node error',()=>{const gr=parseNet(JSON.stringify(SAMPLE));ok(gr.bfs('Center').length===5);let e=0;try{parseNet('{"intersections":[{"id":"A","x":1,"y":1}],"roads":[{"from":"A","to":"Z","lanes":1,"speedLimit":30}]}')}catch(x){e=1}ok(e)});
+ t('Signal: GREEN → YELLOW → RED (all-red) → other GREEN',()=>{const s=new Sim({...low,gNS:5,gEW:5,yellow:2,allRed:1}),seen=[s.sig.phase];for(let i=0;i<400;i++){s.step();if(seen[seen.length-1]!==s.sig.phase)seen.push(s.sig.phase)}ok(seen.slice(0,4).join()==='NS_GREEN,NS_YELLOW,AR1,EW_GREEN',seen.join())});
+ t('Vehicle: stops at red, waits at queue front, leaves on green (FIFO passes)',()=>{const s=new Sim({...low,gNS:30}),v=s.spawn('car','E');ok(v);for(let i=0;i<300;i++)s.step();ok(v.state==='QUEUED'&&v.speed<.5&&s.q.E.front()===v,'state '+v.state);for(let i=0;i<1200;i++)s.step();ok(v.done&&s.val.E.status==='PASSED'&&s.q.E.isEmpty())});
+ t('Emergency: detected, priority activated, signal changed, vehicle crosses',()=>{const s=new Sim(low),e=s.spawn('emergency','E');ok(e&&s.pq.size()===1);let pre=0,gr=0;for(let i=0;i<900&&!e.done;i++){s.step();if(s.sig.preempt==='EW')pre=1;if(s.sig.phase==='EW_GREEN')gr=1}ok(pre&&gr&&e.done)});
+ t('Simulation: same seed reproduces the same run; reset clears state',()=>{const a=new Sim({demand:'high',seed:7}),b=new Sim({demand:'high',seed:7});for(let i=0;i<600;i++){a.step();b.step()}ok(a.st.spawned>0&&a.st.spawned===b.st.spawned&&a.st.passed===b.st.passed);a.reset();ok(a.t===0&&a.st.spawned===0)});
+ t('Simulation: 5 minutes of high traffic keeps FIFO PASSED on all queues',()=>{const s=new Sim({demand:'high',seed:3});for(let i=0;i<3000;i++)s.step();ok(s.st.passed>0);for(const A of A4)ok(s.val[A].status==='PASSED',A)});
+ $('tests').innerHTML=T.map(([n,f])=>{try{f();return `<div><span class="ok">✓</span> ${n}</div>`}catch(e){return `<div><span class="bad">✗</span> ${n}: ${esc(e.message)}</div>`}}).join('')}
+$('bTest').onclick=runTests;
+
+/* ---- main loop ---- */
+function frame(now){const dt=Math.min(.1,(now-last)/1000);last=now;if(run){sim.acc+=dt*mult;let n=0;while(sim.acc>=DT&&n<60){sim.step();sim.acc-=DT;n++}}draw();requestAnimationFrame(frame)}
+sync();net=parseNet($('netTxt').value);showNet(net);pg();panels();requestAnimationFrame(frame);setInterval(panels,250);
+</script></body></html>
